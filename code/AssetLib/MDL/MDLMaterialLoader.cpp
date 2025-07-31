@@ -226,10 +226,30 @@ void MDLImporter::ParseTextureColorData(const unsigned char *szData,
             throw DeadlyImportError("Invalid MDL file. A texture is too big.");
         }
 
-        if(pcNew->mWidth != 0 && pcNew->mHeight > UINT_MAX/pcNew->mWidth) {
-            throw DeadlyImportError("Invalid MDL file. A texture is too big.");
+        if (pcNew->mHeight != 0 && pcNew->mWidth > UINT_MAX / pcNew->mHeight) {
+            throw DeadlyImportError("Invalid MDL file. A texture is too big (height*width overflow).");
         }
-        pcNew->pcData = new aiTexel[pcNew->mWidth * pcNew->mHeight];
+
+        if (pcNew->mHeight == 0) { // Compressed texture
+            if (pcNew->mWidth == 0) {
+                pcNew->pcData = nullptr; // No data
+            } else {
+                // mWidth is the size in bytes for compressed data
+                pcNew->pcData = reinterpret_cast<aiTexel*>(new char[pcNew->mWidth]);
+            }
+        } else { // Uncompressed texture (aiTexel)
+            // Allocate size in bytes for consistency with SceneCombiner
+            size_t numTexels = static_cast<size_t>(pcNew->mWidth) * static_cast<size_t>(pcNew->mHeight);
+            if (numTexels > SIZE_MAX / sizeof(aiTexel)) {
+                 throw DeadlyImportError("Invalid MDL file. A texture is too big (size_t overflow).");
+            }
+            size_t sizeInBytes = numTexels * sizeof(aiTexel);
+            if (sizeInBytes == 0) {
+                pcNew->pcData = nullptr;
+            } else {
+                pcNew->pcData = reinterpret_cast<aiTexel*>(new char[sizeInBytes]);
+            }
+        }
     }
 
     // R5G6B5 format (with or without MIPs)
